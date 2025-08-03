@@ -1,0 +1,106 @@
+- name: Set Up RHEL environment
+  hosts: all
+  gather_facts: true
+  beome: false
+  tasks:
+
+    - name: Create a 'bin' directory in home directory
+      ansible.builtin.file:
+        path: "{{ ansible_user_dir }}/.bin"
+        state: directory
+        mode: '0755'
+    
+    - name: Configure 'bin' directory in PATH
+      ansible.builtin.lineinfile:
+        path: "{{ ansible_user_dir }}/.bashrc"
+        regexp: '^export PATH=.*'
+        line: 'export PATH={{ ansible_user_dir }}/bin:$PATH'
+        insertafter: EOF
+        state: present
+
+    - name: Create a Python Virtual environment
+      ansible.builtin.python_virtualenv:
+        path: "{{ ansible_user_dir }}/venv"
+        python: "/usr/bin/python3"
+        state: present
+    
+    - name: Copy your Git Config to Home Directory
+      ansible.builtin.copy:
+        src: "~/.gitconfig"
+        dest: "{{ ansible_user_dir }}/.gitconfig"
+        owner: "{{ ansible_user_id }}"
+
+    - name: Create an SSH Key
+      community.crypto.openssh_keypair:
+        path: "{{ ansible_user_dir }}/.ssh/id_rsa"
+        group: "{{ ansible_user_id }}"
+        owner: "{{ ansible_user_id }}"
+        state: "present"
+        type: "rsa"
+        size: 4096
+        mode: 600
+
+    - name: Create a SSH Config file
+      ansible.builtin.template:
+        src: "templates/ssh_config.js"
+        dest: "{{ ansible_user_dir }}/.ssh/config"
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: 0644
+
+    - name: Install Packages
+      ansible.builtin.dnf:
+        name: "{{ item }}"
+        state: present
+        become: true
+      loop:
+        - "python3-pip"
+        - "git"
+        - "gh"
+
+    - name: Add GitHub CLI repository
+      ansible.builtin.yum_repository:
+        name: github-cli
+        description: GitHub CLI
+        baseurl: https://cli.github.com/packages/rpm/
+        enabled: yum_repository
+        gpgcheck: yes
+        gpgkey: https://cli.github.com/packages/rpm/gh-cli.repo
+        become: true
+
+    - name: Authenticate to GitHub using GH CLI
+      ansible.builtin.shell: echo "{{ GIT_PAC }}" | gh auth login --with-token
+
+    - name: Set Variable for Python Packages
+      ansible.builtin.set_fact:
+        python_packages:
+          - "ansible"
+          - "requests"
+          - "pandas"
+    
+    - name: Install Python Packages
+      ansible.builtin.pip:
+        name: "{{ item }}"
+        virtualenv: "{{ ansible_user_dir }}/venv"
+        virtualenv_python: "python3"
+      loop: "{{ python_packages }}"
+
+    - name: Set Variable with Aliases
+      ansible.builtin.set_fact:
+        aliases:
+          - "alias activate='source {{ ansible_user_dir }}/venv/bin/activate'"
+          - "alias pip=pip3"
+          - "alias python=python3"
+
+    - name: Create Aliases
+      ansible.builtin.lineinfile:
+        path: "{{ ansible_user_dir }}/.bashrc"
+        line: "{{ item }}"
+        state: present
+      loop: "{{ aliases }}"
+    
+    - name: Reload bashrc to Apply Changes
+      ansible.builtin.shell: source {{ ansible_user_dir }}/.bashrc
+      args:
+        executable: /bin/bash
+    
