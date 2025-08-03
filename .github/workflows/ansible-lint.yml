@@ -25,4 +25,4 @@ jobs:
           pip install -r requirements.txt
           
       - name: Run Ansible Lint
-        uses: ansible/ansible-lint@24.6.1
+        uses: ansible/ansible-lint@v25.7.0
