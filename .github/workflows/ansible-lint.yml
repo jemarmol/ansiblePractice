@@ -1,0 +1,28 @@
+name: Ansible-Lint Run
+
+on:
+  pull_requests:
+    branches:
+      - 'main'
+
+  jobs:
+    ansible-lint:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout Repo
+          uses: actions/checkout@v4
+
+        - name: Set Up Python
+          uses: actions/setup-python@v2
+          with:
+            python-version: '3.12'
+
+        - name: Install Ansible and Necessary Collections
+          env:
+            GITHUB_TOKEN: ${{ secret.GITHUB_TOKEN }}
+          run: |
+            pip install -r requirements.txt
+          
+        - name: Run Ansible Lint
+          uses: ansible/ansible-lint@24.6.1
