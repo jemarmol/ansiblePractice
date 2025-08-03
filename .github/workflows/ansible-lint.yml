@@ -23,6 +23,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install -r requirements.txt
-          
+
       - name: Run Ansible Lint
         uses: ansible/ansible-lint@v25.7.0
