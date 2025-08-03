@@ -2,15 +2,17 @@
   hosts: all
   gather_facts: true
   become: false
+  vars:
+    GIT_PAT: "{{ lookup('env', 'GIT_PAT') }}"
   tasks:
 
-    - name: Create a 'bin' directory in home directory
+    - name: Create a '.bin' directory in home directory
       ansible.builtin.file:
         path: "{{ ansible_user_dir }}/.bin"
         state: directory
         mode: '0755'
 
-    - name: Configure 'bin' directory in PATH
+    - name: Add '.bin' directory in PATH
       ansible.builtin.lineinfile:
         path: "{{ ansible_user_dir }}/.bashrc"
         regexp: '^export PATH=.*'
@@ -38,7 +40,7 @@
         state: "present"
         type: "rsa"
         size: 4096
-        mode: 600
+        mode: 0600
 
     - name: Create a SSH Config file
       ansible.builtin.template:
@@ -47,16 +49,6 @@
         owner: "{{ ansible_user_id }}"
         group: "{{ ansible_user_id }}"
         mode: 0644
-
-    - name: Install Packages
-      ansible.builtin.dnf:
-        name: "{{ item }}"
-        state: present
-        become: true
-      loop:
-        - "python3-pip"
-        - "git"
-        - "gh"
 
     - name: Add GitHub CLI repository
       ansible.builtin.yum_repository:
@@ -68,8 +60,25 @@
         gpgkey: https://cli.github.com/packages/rpm/gh-cli.repo
         become: true
 
+    - name: Install Packages
+      ansible.builtin.dnf:
+        name: "{{ item }}"
+        state: present
+        become: true
+      loop:
+        - "python3-pip"
+        - "git"
+        - "gh"
+
     - name: Authenticate to GitHub using GH CLI
-      ansible.builtin.shell: echo "{{ GIT_PAC }}" | gh auth login --with-token
+      ansible.builtin.shell: echo "{{ GIT_PAT }}" | gh auth login --with-token
+
+    - name: Add Public SSH Key to GitHub
+      community.general.github_key:
+        name: "ssh-key-rhel-vm-1"
+        token: "{{GIT_PAT }}"
+        pubkey: "{{ lookup('file', '{{ ansible_user_dir }}/.ssh/id_rsa.pub') }}"
+        state: "present"
 
     - name: Set Variable for Python Packages
       ansible.builtin.set_fact:
