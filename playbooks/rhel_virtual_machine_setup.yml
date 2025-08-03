@@ -20,11 +20,20 @@
         insertafter: EOF
         state: present
 
+    - name: Set Variable for Python Packages
+      ansible.builtin.set_fact:
+        python_packages:
+          - "ansible"
+          - "requests"
+          - "pandas"
+
     - name: Create a Python Virtual environment
-      ansible.builtin.python_virtualenv:
-        path: "{{ ansible_user_dir }}/venv"
-        python: "/usr/bin/python3"
+      ansible.builtin.pip:
+        virtualenv: "{{ ansible_user_dir }}/.venv"
+        virtualenv_python: "python3"
         state: present
+      loop: "{{ python_packages }}"
+
 
     - name: Copy your Git Config to Home Directory
       ansible.builtin.copy:
@@ -79,20 +88,6 @@
         token: "{{GIT_PAT }}"
         pubkey: "{{ lookup('file', '{{ ansible_user_dir }}/.ssh/id_rsa.pub') }}"
         state: "present"
-
-    - name: Set Variable for Python Packages
-      ansible.builtin.set_fact:
-        python_packages:
-          - "ansible"
-          - "requests"
-          - "pandas"
-
-    - name: Install Python Packages
-      ansible.builtin.pip:
-        name: "{{ item }}"
-        virtualenv: "{{ ansible_user_dir }}/venv"
-        virtualenv_python: "python3"
-      loop: "{{ python_packages }}"
 
     - name: Set Variable with Aliases
       ansible.builtin.set_fact:
