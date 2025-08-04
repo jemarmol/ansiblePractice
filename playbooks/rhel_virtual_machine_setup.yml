@@ -3,7 +3,7 @@
   gather_facts: true
   become: false
   vars:
-    GIT_PAT: "{{ lookup('env', 'GIT_PAT') }}"
+    git_pat: "{{ lookup('env', 'GIT_PAT') }}"
   tasks:
 
     - name: Create a '.bin' directory in home directory
@@ -29,6 +29,7 @@
 
     - name: Create a Python Virtual environment
       ansible.builtin.pip:
+        name: "{{ item }}"
         virtualenv: "{{ ansible_user_dir }}/.venv"
         virtualenv_python: "python3"
         state: present
@@ -40,6 +41,7 @@
         src: "~/.gitconfig"
         dest: "{{ ansible_user_dir }}/.gitconfig"
         owner: "{{ ansible_user_id }}"
+        mode: "644"
 
     - name: Create an SSH Key
       community.crypto.openssh_keypair:
@@ -49,7 +51,7 @@
         state: "present"
         type: "rsa"
         size: 4096
-        mode: 0600
+        mode: 600
 
     - name: Create a SSH Config file
       ansible.builtin.template:
@@ -57,17 +59,17 @@
         dest: "{{ ansible_user_dir }}/.ssh/config"
         owner: "{{ ansible_user_id }}"
         group: "{{ ansible_user_id }}"
-        mode: 0644
+        mode: "644"
 
     - name: Add GitHub CLI repository
       ansible.builtin.yum_repository:
         name: github-cli
         description: GitHub CLI
         baseurl: https://cli.github.com/packages/rpm/
-        enabled: yum_repository
-        gpgcheck: yes
+        enabled: true
+        gpgcheck: true
         gpgkey: https://cli.github.com/packages/rpm/gh-cli.repo
-        become: true
+      become: true
 
     - name: Install Packages
       ansible.builtin.dnf:
@@ -80,12 +82,15 @@
         - "gh"
 
     - name: Authenticate to GitHub using GH CLI
-      ansible.builtin.shell: echo "{{ GIT_PAT }}" | gh auth login --with-token
+      ansible.builtin.shell: |
+        set -o pipefail
+        echo "{{ git_pat }}" | gh auth login --with-token
+      changed_when: false
 
     - name: Add Public SSH Key to GitHub
       community.general.github_key:
         name: "ssh-key-rhel-vm-1"
-        token: "{{GIT_PAT }}"
+        token: "{{ git_pat }}"
         pubkey: "{{ lookup('file', '{{ ansible_user_dir }}/.ssh/id_rsa.pub') }}"
         state: "present"
 
@@ -107,3 +112,4 @@
       ansible.builtin.shell: source {{ ansible_user_dir }}/.bashrc
       args:
         executable: /bin/bash
+      changed_when: false
