@@ -1,0 +1,3 @@
+profile: production
+quiet: false
+verbosity: 1
