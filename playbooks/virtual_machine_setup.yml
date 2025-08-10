@@ -1,22 +1,23 @@
-- name: Set Up RHEL environment
+- name: Set Up VM environment
   hosts: all
   gather_facts: true
   become: false
   vars:
     git_pat: "{{ lookup('env', 'GIT_PAT') }}"
+    gh_key_name: "{{ lookup('env', 'GH_KEY_NAME') }}"
   tasks:
 
     - name: Create a '.bin' directory in home directory
       ansible.builtin.file:
         path: "{{ ansible_user_dir }}/.bin"
         state: directory
-        mode: '0755'
+        mode: "755"
 
     - name: Add '.bin' directory in PATH
       ansible.builtin.lineinfile:
         path: "{{ ansible_user_dir }}/.bashrc"
         regexp: '^export PATH=.*'
-        line: 'export PATH={{ ansible_user_dir }}/bin:$PATH'
+        line: 'export PATH={{ ansible_user_dir }}/.bin:$PATH'
         insertafter: EOF
         state: present
 
@@ -29,12 +30,10 @@
 
     - name: Create a Python Virtual environment
       ansible.builtin.pip:
-        name: "{{ item }}"
+        name: "{{ python_packages }}"
         virtualenv: "{{ ansible_user_dir }}/.venv"
-        virtualenv_python: "python3"
+        virtualenv_command: "{{ ansible_python_interpreter }} -m venv"
         state: present
-      loop: "{{ python_packages }}"
-
 
     - name: Copy your Git Config to Home Directory
       ansible.builtin.copy:
@@ -51,11 +50,11 @@
         state: "present"
         type: "rsa"
         size: 4096
-        mode: 600
+        mode: "600"
 
     - name: Create a SSH Config file
       ansible.builtin.template:
-        src: "templates/ssh_config.js"
+        src: "templates/ssh_config.j2"
         dest: "{{ ansible_user_dir }}/.ssh/config"
         owner: "{{ ansible_user_id }}"
         group: "{{ ansible_user_id }}"
@@ -68,14 +67,14 @@
         baseurl: https://cli.github.com/packages/rpm/
         enabled: true
         gpgcheck: true
-        gpgkey: https://cli.github.com/packages/rpm/gh-cli.repo
+        gpgkey: https://cli.github.com/packages/githubcli-archive-keyring.gpg
       become: true
 
     - name: Install Packages
       ansible.builtin.dnf:
         name: "{{ item }}"
         state: present
-        become: true
+      become: true
       loop:
         - "python3-pip"
         - "git"
@@ -87,12 +86,18 @@
         echo "{{ git_pat }}" | gh auth login --with-token
       changed_when: false
 
+    - name: Read VM's SSH Public Key
+      ansible.builtin.slurp:
+        src: "{{ ansible_user_dir }}/.ssh/id_rsa.pub"
+      register: vm_public_ssh_key
+
     - name: Add Public SSH Key to GitHub
       community.general.github_key:
-        name: "ssh-key-rhel-vm-1"
+        name: "{{ gh_key_name }}"
         token: "{{ git_pat }}"
-        pubkey: "{{ lookup('file', '{{ ansible_user_dir }}/.ssh/id_rsa.pub') }}"
-        state: "present"
+        pubkey: "{{ vm_public_ssh_key['content'] | b64decode }}"
+        state: present
+      become: true
 
     - name: Set Variable with Aliases
       ansible.builtin.set_fact:
