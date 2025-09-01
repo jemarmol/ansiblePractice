@@ -1,0 +1,39 @@
+- name: Create Users
+  hosts: all
+  gather_facts: true
+  become: false
+  vars:
+    newUser: "{{ lookup('env', 'newUser') }}"
+  tasks:
+
+    - name: Create User and Home Directory
+      ansible.builtin.user:
+        name: "{{ newUser }}"
+        create_home: true
+        password: "{{ newUser }}"
+        shell: "/bin/bash"
+        group: "wheel"
+        state: "present"
+        update_password: "on_create"
+      become: true
+      register: new_user
+
+    - name: Create ~/.bin directory For New User
+      ansible.builtin.file:
+        path: "~/.bin"
+        owner: "{{ new_user.name }}"
+        group: "{{  }}"
+        mode: "755"
+        state: "directory"
+      become: true
+      become_user: "{{ new_user.name }}"
+
+    - name: Add '.bin' directory in PATH
+      ansible.builtin.lineinfile:
+        path: "~/.bashrc"
+        regexp: '^export PATH=.*'
+        line: 'export PATH=/home/{{ new_user.name }}/.bin:$PATH'
+        insertafter: EOF
+        state: present
+      become: true
+      become_user: "{{ new_user.name }}"
